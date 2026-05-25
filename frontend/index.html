@@ -1,0 +1,986 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>PrusaAssist — Maintenance AI</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg:         #080b0f;
+    --bg2:        #0d1117;
+    --bg3:        #111820;
+    --border:     #1e2d3d;
+    --border2:    #243447;
+    --accent:     #00d4ff;
+    --accent2:    #ff6b35;
+    --accent3:    #39ff14;
+    --text:       #c9d4e0;
+    --text2:      #6b8299;
+    --text3:      #3a5068;
+    --warn:       #ffb800;
+    --danger:     #ff3d3d;
+    --panel:      rgba(13,17,23,0.95);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 15px;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── Scanline overlay ── */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,212,255,0.015) 2px,
+      rgba(0,212,255,0.015) 4px
+    );
+    pointer-events: none;
+    z-index: 999;
+  }
+
+  /* ── Grid bg ── */
+  body::after {
+    content: '';
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(rgba(0,212,255,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,212,255,0.04) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .app {
+    position: relative;
+    z-index: 1;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 24px 20px;
+  }
+
+  /* ── Header ── */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 28px;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .logo-icon {
+    width: 40px; height: 40px;
+    border: 1px solid var(--accent);
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 18px;
+    color: var(--accent);
+    position: relative;
+    animation: pulse-border 3s ease-in-out infinite;
+  }
+
+  @keyframes pulse-border {
+    0%,100% { box-shadow: 0 0 6px rgba(0,212,255,0.3); }
+    50%      { box-shadow: 0 0 16px rgba(0,212,255,0.7); }
+  }
+
+  .logo-icon::before, .logo-icon::after {
+    content: '';
+    position: absolute;
+    width: 6px; height: 6px;
+    border-color: var(--accent);
+    border-style: solid;
+  }
+  .logo-icon::before { top: -1px; left: -1px; border-width: 1px 0 0 1px; }
+  .logo-icon::after  { bottom: -1px; right: -1px; border-width: 0 1px 1px 0; }
+
+  .logo-text h1 {
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: #fff;
+  }
+
+  .logo-text span {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: var(--accent);
+    letter-spacing: 2px;
+    display: block;
+    margin-top: 2px;
+  }
+
+  .status-bar {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: var(--text2);
+  }
+
+  .status-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--accent3);
+    display: inline-block;
+    margin-right: 6px;
+    animation: blink 2s step-end infinite;
+  }
+
+  @keyframes blink {
+    0%,100% { opacity: 1; } 50% { opacity: 0.2; }
+  }
+
+  /* ── Main layout ── */
+  .main {
+    display: grid;
+    grid-template-columns: 340px 1fr;
+    gap: 20px;
+    align-items: start;
+  }
+
+  /* ── Panel base ── */
+  .panel {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    position: relative;
+  }
+
+  .panel::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    opacity: 0.5;
+  }
+
+  .panel-header {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: var(--accent);
+    text-transform: uppercase;
+  }
+
+  .panel-header .ph-num {
+    color: var(--text3);
+    font-size: 10px;
+  }
+
+  .panel-body { padding: 16px; }
+
+  /* ── Input panel ── */
+  .input-panel { }
+
+  /* Model selector */
+  .field-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--text2);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    display: block;
+  }
+
+  .model-select {
+    width: 100%;
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    color: var(--text);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    padding: 10px 12px;
+    appearance: none;
+    cursor: pointer;
+    outline: none;
+    letter-spacing: 1px;
+    transition: border-color 0.2s;
+  }
+
+  .model-select:focus { border-color: var(--accent); }
+
+  .select-wrap {
+    position: relative;
+    margin-bottom: 20px;
+  }
+
+  .select-wrap::after {
+    content: '▾';
+    position: absolute;
+    right: 12px; top: 50%;
+    transform: translateY(-50%);
+    color: var(--accent);
+    pointer-events: none;
+    font-size: 12px;
+  }
+
+  /* Image upload */
+  .upload-zone {
+    border: 1px dashed var(--border2);
+    padding: 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-bottom: 20px;
+    position: relative;
+    background: var(--bg3);
+  }
+
+  .upload-zone:hover, .upload-zone.drag-over {
+    border-color: var(--accent);
+    background: rgba(0,212,255,0.04);
+  }
+
+  .upload-zone input { display: none; }
+
+  .upload-icon {
+    font-size: 28px;
+    margin-bottom: 8px;
+    display: block;
+    opacity: 0.5;
+  }
+
+  .upload-zone p {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: var(--text2);
+    letter-spacing: 1px;
+  }
+
+  .upload-zone .preview-img {
+    max-width: 100%;
+    max-height: 140px;
+    object-fit: contain;
+    display: none;
+  }
+
+  /* Text input */
+  .text-input {
+    width: 100%;
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    color: var(--text);
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 14px;
+    padding: 10px 12px;
+    resize: none;
+    outline: none;
+    height: 80px;
+    transition: border-color 0.2s;
+    margin-bottom: 16px;
+  }
+
+  .text-input:focus { border-color: var(--accent); }
+  .text-input::placeholder { color: var(--text3); font-style: italic; }
+
+  /* Voice button */
+  .voice-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    align-items: center;
+  }
+
+  .btn-voice {
+    flex: 1;
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    color: var(--text2);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 2px;
+    padding: 10px;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .btn-voice:hover { border-color: var(--accent2); color: var(--accent2); }
+
+  .btn-voice.recording {
+    border-color: var(--danger);
+    color: var(--danger);
+    animation: recording-pulse 1s ease-in-out infinite;
+  }
+
+  @keyframes recording-pulse {
+    0%,100% { box-shadow: 0 0 0 0 rgba(255,61,61,0.4); }
+    50%      { box-shadow: 0 0 0 6px rgba(255,61,61,0); }
+  }
+
+  .rec-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+
+  .voice-timer {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    color: var(--text3);
+    min-width: 40px;
+    text-align: right;
+  }
+
+  /* Analyze button */
+  .btn-analyze {
+    width: 100%;
+    background: transparent;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 700;
+    font-size: 14px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    padding: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .btn-analyze::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--accent);
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+    z-index: 0;
+  }
+
+  .btn-analyze:hover::before { transform: translateX(0); }
+  .btn-analyze:hover { color: var(--bg); }
+  .btn-analyze span { position: relative; z-index: 1; }
+
+  .btn-analyze:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+  .btn-analyze:disabled::before { display: none; }
+
+  /* ── Output panel ── */
+  .output-panel { }
+
+  .response-boxes {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 16px;
+  }
+
+  .response-box {
+    border: 1px solid var(--border);
+    background: var(--bg3);
+    position: relative;
+    opacity: 0.4;
+    transition: opacity 0.4s ease;
+  }
+
+  .response-box.active { opacity: 1; }
+
+  .response-box.active::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+  }
+
+  .box-summary.active::before   { background: var(--accent); }
+  .box-diagnostics.active::before { background: var(--accent2); }
+  .box-references.active::before  { background: var(--accent3); }
+
+  .box-header {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .box-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  .box-summary    .box-title { color: var(--accent); }
+  .box-diagnostics .box-title { color: var(--accent2); }
+  .box-references  .box-title { color: var(--accent3); }
+
+  .box-tag {
+    font-size: 9px;
+    padding: 2px 6px;
+    border: 1px solid currentColor;
+    opacity: 0.6;
+  }
+
+  .box-status {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    color: var(--text3);
+    letter-spacing: 1px;
+  }
+
+  .box-content {
+    padding: 14px;
+    font-size: 14px;
+    line-height: 1.7;
+    color: var(--text);
+    min-height: 60px;
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 500;
+  }
+
+  .box-content.mono {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    line-height: 1.8;
+  }
+
+  /* placeholder text */
+  .placeholder-text {
+    color: var(--text3);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 1px;
+    font-style: normal;
+  }
+
+  /* loading bar */
+  .loading-bar {
+    height: 2px;
+    background: var(--border);
+    overflow: hidden;
+    display: none;
+  }
+
+  .loading-bar.active { display: block; }
+
+  .loading-bar-inner {
+    height: 100%;
+    width: 30%;
+    background: var(--accent);
+    animation: loading-slide 1.2s ease-in-out infinite;
+  }
+
+  .box-diagnostics .loading-bar-inner { background: var(--accent2); }
+  .box-references  .loading-bar-inner { background: var(--accent3); }
+
+  @keyframes loading-slide {
+    0%   { transform: translateX(-100%); }
+    100% { transform: translateX(400%); }
+  }
+
+  /* Step formatting */
+  .step-item {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 10px;
+    align-items: flex-start;
+  }
+
+  .step-num {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: var(--accent2);
+    min-width: 24px;
+    margin-top: 2px;
+  }
+
+  .ref-item {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 8px;
+    padding: 8px 10px;
+    border-left: 2px solid var(--accent3);
+    background: rgba(57,255,20,0.03);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+  }
+
+  .warn-item {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 8px;
+    padding: 8px 10px;
+    border-left: 2px solid var(--warn);
+    background: rgba(255,184,0,0.04);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: var(--warn);
+  }
+
+  /* ── Bottom status bar ── */
+  .bottom-bar {
+    margin-top: 20px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: var(--text3);
+    letter-spacing: 1px;
+  }
+
+  .bottom-bar .log { color: var(--accent); }
+
+  /* ── Cursor blink ── */
+  .cursor::after {
+    content: '█';
+    animation: blink 1s step-end infinite;
+    color: var(--accent);
+    font-size: 12px;
+  }
+
+  /* ── Image preview in upload ── */
+  .img-preview-wrap {
+    position: relative;
+  }
+  .img-preview-wrap .remove-img {
+    position: absolute;
+    top: 4px; right: 4px;
+    background: var(--danger);
+    color: #fff;
+    border: none;
+    width: 20px; height: 20px;
+    font-size: 12px;
+    cursor: pointer;
+    display: none;
+    align-items: center;
+    justify-content: center;
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header>
+    <div class="logo">
+      <div class="logo-icon">PA</div>
+      <div class="logo-text">
+        <h1>PrusaAssist</h1>
+        <span>// MAINTENANCE INTELLIGENCE SYSTEM v1.0</span>
+      </div>
+    </div>
+    <div class="status-bar">
+      <span><span class="status-dot"></span>SYSTEM ONLINE</span>
+      <span id="clock">--:--:--</span>
+    </div>
+  </header>
+
+  <div class="main">
+
+    <div class="panel input-panel">
+      <div class="panel-header">
+        <span class="ph-num">[01]</span> INPUT MODULE
+      </div>
+      <div class="panel-body">
+
+        <label class="field-label">// PRINTER MODEL</label>
+        <div class="select-wrap">
+          <select class="model-select" id="printerModel">
+            <option value="">— SELECT MODEL —</option>
+            <option value="prusa_mk2_5">Prusa MK2.5</option>
+            <option value="prusa_mk4_s">Prusa MK4S</option>
+            <option value="prusa_xl">Prusa XL</option>
+          </select>
+        </div>
+
+        <label class="field-label">// VISUAL INPUT</label>
+        <div class="upload-zone" id="uploadZone">
+          <input type="file" id="imageInput" accept="image/*"/>
+          <div id="uploadPrompt">
+            <span class="upload-icon">⬡</span>
+            <p>DROP IMAGE / CLICK TO UPLOAD</p>
+            <p style="margin-top:4px;opacity:0.5">JPG · PNG · WEBP</p>
+          </div>
+          <div class="img-preview-wrap">
+            <img id="previewImg" class="preview-img"/>
+            <button class="remove-img" id="removeImg">✕</button>
+          </div>
+        </div>
+
+        <label class="field-label">// VOICE INPUT</label>
+        <div class="voice-row">
+          <button class="btn-voice" id="voiceBtn">
+            <span class="rec-dot"></span>
+            <span id="voiceBtnText">RECORD</span>
+          </button>
+          <span class="voice-timer" id="voiceTimer">0:00</span>
+        </div>
+
+        <label class="field-label">// TEXT INPUT</label>
+        <textarea
+          class="text-input"
+          id="textInput"
+          placeholder="Describe the issue or ask a question..."></textarea>
+
+        <button class="btn-analyze" id="analyzeBtn" disabled>
+          <span>⬡ ANALYZE</span>
+        </button>
+
+      </div>
+    </div>
+
+    <div class="panel output-panel">
+      <div class="panel-header">
+        <span class="ph-num">[02]</span> DIAGNOSTIC OUTPUT
+      </div>
+
+      <div class="response-boxes">
+
+        <div class="response-box box-summary" id="box1">
+          <div class="box-header">
+            <div class="box-title">
+              <span>SITUATION REPORT</span>
+              <span class="box-tag">01</span>
+            </div>
+            <span class="box-status" id="box1status">AWAITING INPUT</span>
+          </div>
+          <div class="loading-bar" id="load1"><div class="loading-bar-inner"></div></div>
+          <div class="box-content" id="box1content">
+            <span class="placeholder-text">// input analysis will appear here</span>
+          </div>
+        </div>
+
+        <div class="response-box box-diagnostics" id="box2">
+          <div class="box-header">
+            <div class="box-title">
+              <span>STEP-BY-STEP DIAGNOSTICS</span>
+              <span class="box-tag">02</span>
+            </div>
+            <span class="box-status" id="box2status">AWAITING INPUT</span>
+          </div>
+          <div class="loading-bar" id="load2"><div class="loading-bar-inner"></div></div>
+          <div class="box-content" id="box2content">
+            <span class="placeholder-text">// repair sequence will appear here</span>
+          </div>
+        </div>
+
+        <div class="response-box box-references" id="box3">
+          <div class="box-header">
+            <div class="box-title">
+              <span>REFERENCES &amp; WARNINGS</span>
+              <span class="box-tag">03</span>
+            </div>
+            <span class="box-status" id="box3status">AWAITING INPUT</span>
+          </div>
+          <div class="loading-bar" id="load3"><div class="loading-bar-inner"></div></div>
+          <div class="box-content mono" id="box3content">
+            <span class="placeholder-text">// manual references + safety warnings will appear here</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <div class="bottom-bar">
+    <span id="logLine">// SYSTEM READY — SELECT PRINTER MODEL AND PROVIDE INPUT</span>
+    <span>PRUSAASSIST // RAG + GEMINI 2.5</span>
+  </div>
+
+</div>
+
+<script>
+// ── Clock ──────────────────────────────────────────────────────
+function updateClock() {
+  const now = new Date();
+  document.getElementById('clock').textContent =
+    now.toTimeString().slice(0,8);
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ── Log line ───────────────────────────────────────────────────
+function setLog(msg) {
+  document.getElementById('logLine').textContent = `// ${msg}`;
+}
+
+// ── Enable analyze button when model is selected ───────────────
+const modelSelect = document.getElementById('printerModel');
+const analyzeBtn  = document.getElementById('analyzeBtn');
+const textInput   = document.getElementById('textInput');
+
+function checkReady() {
+  const hasModel = modelSelect.value !== '';
+  // Check if we have any input (text, image file, or audio)
+  const hasInput = textInput.value.trim() !== '' || imageFile || audioBlob;
+  analyzeBtn.disabled = !(hasModel && hasInput);
+}
+
+modelSelect.addEventListener('change', checkReady);
+textInput.addEventListener('input', checkReady);
+
+// ── Image upload ───────────────────────────────────────────────
+let imageFile = null; // CHANGED: Store the actual file instead of base64
+const uploadZone  = document.getElementById('uploadZone');
+const imageInput  = document.getElementById('imageInput');
+const previewImg  = document.getElementById('previewImg');
+const uploadPrompt = document.getElementById('uploadPrompt');
+const removeImg   = document.getElementById('removeImg');
+
+uploadZone.addEventListener('click', () => imageInput.click());
+
+uploadZone.addEventListener('dragover', e => {
+  e.preventDefault();
+  uploadZone.classList.add('drag-over');
+});
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+uploadZone.addEventListener('drop', e => {
+  e.preventDefault();
+  uploadZone.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) loadImage(file);
+});
+
+imageInput.addEventListener('change', e => {
+  if (e.target.files[0]) loadImage(e.target.files[0]);
+});
+
+removeImg.addEventListener('click', e => {
+  e.stopPropagation();
+  imageFile = null; // Reset the file object
+  previewImg.style.display = 'none';
+  previewImg.src = '';
+  removeImg.style.display = 'none';
+  uploadPrompt.style.display = 'block';
+  checkReady();
+});
+
+function loadImage(file) {
+  imageFile = file; // Store the binary file for FormData
+  
+  const reader = new FileReader();
+  reader.onload = ev => {
+    previewImg.src = ev.target.result;
+    previewImg.style.display = 'block';
+    removeImg.style.display  = 'flex';
+    uploadPrompt.style.display = 'none';
+    setLog(`IMAGE LOADED — ${file.name}`);
+    checkReady();
+  };
+  reader.readAsDataURL(file);
+}
+
+// ── Voice recording ────────────────────────────────────────────
+let mediaRecorder = null;
+let audioChunks   = [];
+let audioBlob     = null;
+let timerInterval = null;
+let recSeconds    = 0;
+
+const voiceBtn      = document.getElementById('voiceBtn');
+const voiceBtnText  = document.getElementById('voiceBtnText');
+const voiceTimer    = document.getElementById('voiceTimer');
+
+voiceBtn.addEventListener('click', async () => {
+  if (mediaRecorder && mediaRecorder.state === 'recording') {
+    mediaRecorder.stop();
+    return;
+  }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    mediaRecorder = new MediaRecorder(stream);
+    audioChunks   = [];
+
+    mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+    mediaRecorder.onstop = () => {
+      audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+      clearInterval(timerInterval);
+      voiceBtn.classList.remove('recording');
+      voiceBtnText.textContent = 'RECORDED ✓';
+      voiceBtn.style.borderColor = 'var(--accent3)';
+      voiceBtn.style.color = 'var(--accent3)';
+      stream.getTracks().forEach(t => t.stop());
+      setLog(`AUDIO CAPTURED — ${recSeconds}s`);
+      checkReady();
+    };
+
+    mediaRecorder.start();
+    recSeconds = 0;
+    voiceBtn.classList.add('recording');
+    voiceBtnText.textContent = 'STOP';
+
+    timerInterval = setInterval(() => {
+      recSeconds++;
+      const m = Math.floor(recSeconds / 60);
+      const s = recSeconds % 60;
+      voiceTimer.textContent = `${m}:${s.toString().padStart(2,'0')}`;
+    }, 1000);
+
+    setLog('RECORDING AUDIO...');
+  } catch(err) {
+    setLog(`MIC ERROR — ${err.message}`);
+  }
+});
+
+// ── Box state helpers ──────────────────────────────────────────
+function setBoxLoading(n) {
+  document.getElementById(`box${n}`).classList.add('active');
+  document.getElementById(`load${n}`).classList.add('active');
+  document.getElementById(`box${n}status`).textContent = 'PROCESSING...';
+  document.getElementById(`box${n}content`).innerHTML =
+    '<span class="placeholder-text cursor"> </span>';
+}
+
+function setBoxDone(n, html, statusText) {
+  document.getElementById(`load${n}`).classList.remove('active');
+  document.getElementById(`box${n}status`).textContent = statusText;
+  document.getElementById(`box${n}content`).innerHTML = html;
+}
+
+function resetBoxes() {
+  for (let n = 1; n <= 3; n++) {
+    document.getElementById(`box${n}`).classList.remove('active');
+    document.getElementById(`load${n}`).classList.remove('active');
+    document.getElementById(`box${n}status`).textContent = 'AWAITING INPUT';
+  }
+  document.getElementById('box1content').innerHTML = '<span class="placeholder-text">// input analysis will appear here</span>';
+  document.getElementById('box2content').innerHTML = '<span class="placeholder-text">// repair sequence will appear here</span>';
+  document.getElementById('box3content').innerHTML = '<span class="placeholder-text">// manual references + safety warnings will appear here</span>';
+}
+
+// ── Format response into boxes ─────────────────────────────────
+function renderSummary(text) {
+  return `<p>${text}</p>`;
+}
+
+function renderDiagnostics(text) {
+  // Split numbered steps if present
+  const lines = text.split('\n').filter(l => l.trim());
+  let html = '';
+  lines.forEach(line => {
+    const match = line.match(/^(\d+)[.)]\s*(.*)/);
+    if (match) {
+      html += `<div class="step-item">
+        <span class="step-num">[${match[1].padStart(2,'0')}]</span>
+        <span>${match[2]}</span>
+      </div>`;
+    } else if (line.trim()) {
+      html += `<p style="margin-bottom:8px">${line}</p>`;
+    }
+  });
+  return html || `<p>${text}</p>`;
+}
+
+function renderReferences(refs, warnings) {
+  let html = '';
+  if (refs && refs.length) {
+    html += refs.map(r =>
+      `<div class="ref-item">📄 ${r}</div>`
+    ).join('');
+  }
+  if (warnings && warnings.length) {
+    html += warnings.map(w =>
+      `<div class="warn-item">⚠ ${w}</div>`
+    ).join('');
+  }
+  return html || '<span class="placeholder-text">// no references found</span>';
+}
+
+// ── Main analyze flow ──────────────────────────────────────────
+analyzeBtn.addEventListener('click', async () => {
+  const model    = modelSelect.value;
+  const question = textInput.value.trim();
+
+  if (!model) { setLog('ERROR — SELECT PRINTER MODEL'); return; }
+
+  resetBoxes();
+  analyzeBtn.disabled = true;
+  setLog('INITIALIZING ANALYSIS...');
+
+  // Build form data
+  const formData = new FormData();
+  formData.append('printer_model', model);
+  if (question) formData.append('question', question);
+  
+  // CHANGED: Append the file binary with the exact key "image" to match FastAPI UploadFile
+  if (imageFile) formData.append('image', imageFile); 
+  if (audioBlob) formData.append('audio', audioBlob, 'recording.webm');
+
+  try {
+    // ── Box 1: show loading immediately ──
+    setBoxLoading(1);
+    setLog('RETRIEVING FROM KNOWLEDGE BASE...');
+
+    const response = await fetch('/analyze', {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const err = await response.json();
+      throw new Error(err.detail || 'Server error');
+    }
+
+    const data = await response.json();
+
+    // ── Box 1: Summary ──
+    setBoxDone(1, renderSummary(data.summary), 'COMPLETE');
+    setLog('SUMMARY READY — RUNNING DIAGNOSTICS...');
+
+    // ── Box 2: Diagnostics (slight delay for effect) ──
+    setBoxLoading(2);
+    await new Promise(r => setTimeout(r, 300));
+    setBoxDone(2, renderDiagnostics(data.diagnostics), 'COMPLETE');
+    setLog('DIAGNOSTICS READY — FETCHING REFERENCES...');
+
+    // ── Box 3: References ──
+    setBoxLoading(3);
+    await new Promise(r => setTimeout(r, 300));
+    setBoxDone(3, renderReferences(data.references, data.warnings), 'COMPLETE');
+    setLog(`ANALYSIS COMPLETE — ${model.toUpperCase()} // ${new Date().toTimeString().slice(0,8)}`);
+
+  } catch (err) {
+    setLog(`ERROR — ${err.message}`);
+    setBoxDone(1, `<span style="color:var(--danger)">// ERROR: ${err.message}</span>`, 'ERROR');
+    document.getElementById('load1').classList.remove('active');
+    document.getElementById('load2').classList.remove('active');
+    document.getElementById('load3').classList.remove('active');
+  }
+
+  analyzeBtn.disabled = false;
+});
+</script>
+</body>
+</html>

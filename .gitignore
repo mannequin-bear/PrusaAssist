@@ -1,0 +1,15 @@
+# Environments
+.env
+venv/
+env/
+
+# Python Cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# IDE / Editor
+.vscode/
+
+# Databases & Large Files (Don't push ChromaDB to GitHub!)
+data/chroma_db/
