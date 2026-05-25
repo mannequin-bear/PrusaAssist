@@ -1,0 +1,27 @@
+# --- Web & Server ---
+fastapi          # Core web framework for asynchronous routing
+uvicorn          # ASGI server to run FastAPI
+python-multipart # Required for FastAPI to handle form data and file uploads
+
+# --- AI & LLM Integration ---
+google-generativeai # Official SDK for interacting with Gemini models
+
+# --- Vector Database & Search ---
+chromadb         # Persistent, local vector database for storing embeddings
+
+# --- Machine Learning & Embeddings ---
+transformers     # Used for loading the Hugging Face SigLIP model
+torch            # PyTorch (required backend for transformers)
+torchvision      # PyTorch vision tools (often required alongside torch)
+Pillow           # Image processing library for handling Python images
+numpy            # Numerical operations used for vector processing
+
+# --- Document Processing & RAG ---
+pymupdf          # High-performance PDF parsing and image extraction
+langchain        # Framework for building LLM applications
+langchain-text-splitters # Specialized text chunking utilities
+langchain-core   # Core interfaces for LangChain components
+
+# --- Configuration & Data Validation ---
+pydantic         # Enforces strict data schemas (used heavily with FastAPI and LLM outputs)
+python-dotenv    # Loads environment variables (like API keys) from a .env file

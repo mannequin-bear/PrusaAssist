@@ -20,7 +20,7 @@ class Settings:
     }
 
     GEMINI_LITE: str = "gemini-3.1-flash-lite"
-    GEMINI_FLASH: str = "gemini-3.5-flash"
-    GEMINI_PRO: str = "gemini-2.5-flash"
+    GEMINI_FLASH: str = "gemini-2.5-flash"
+    GEMINI_PRO: str = "gemini-3.5-flash"
 
 settings = Settings()
