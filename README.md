@@ -1,0 +1,3 @@
+#PrusaAssist
+
+PrusaAssist is a production-ready, multimodal RAG backend designed for hardware maintenance technicians. By combining local multimodal retrieval (ChromaDB + SigLIP) with a tiered agentic workflow (Gemini Flash & Pro), the system ingests images, audio, and text to diagnose 3D printer defects. It bypasses vague user descriptions by visually grounding the problem, querying official manuals, and returning structured, step-by-step repair instructions with strict API contracts and request-isolated observability.
